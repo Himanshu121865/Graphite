@@ -42,7 +42,7 @@ impl FontCatalog {
 						let weight = variant.chars().take_while(|c| c.is_ascii_digit()).collect::<String>().parse::<u32>().unwrap_or(400);
 						let italic = variant.ends_with("italic");
 						let url = family.files.get(variant)?.replacen("http://", "https://", 1);
-						Some(FontCatalogStyle { weight, italic, url })
+						Some(FontCatalogStyle { weight, italic, url: Some(url) })
 					})
 					.collect();
 				FontCatalogFamily { name: family.family, styles }
@@ -76,7 +76,7 @@ impl FontCatalog {
 	pub fn download_url(&self, font: &Font) -> Option<String> {
 		let catalog_family = self.0.iter().find(|catalog_family| catalog_family.name == font.font_family)?;
 		let FontCatalogStyle { weight, italic, .. } = FontCatalogStyle::from_named_style(&font.font_style, "");
-		Some(catalog_family.closest_style(weight, italic).url.clone())
+		catalog_family.closest_style(weight, italic).url.clone()
 	}
 
 	pub fn normalize(&self, font: Font) -> Font {
@@ -117,7 +117,7 @@ impl FontCatalogFamily {
 		static FALLBACK_STYLE: FontCatalogStyle = FontCatalogStyle {
 			weight: 400,
 			italic: false,
-			url: String::new(),
+			url: Some(String::new()),
 		};
 
 		self.styles
@@ -134,7 +134,7 @@ impl FontCatalogFamily {
 pub struct FontCatalogStyle {
 	pub weight: u32,
 	pub italic: bool,
-	pub url: String,
+	pub url: Option<String>,
 }
 
 impl FontCatalogStyle {
@@ -151,7 +151,11 @@ impl FontCatalogStyle {
 	pub fn from_named_style(named_style: &str, url: impl Into<String>) -> FontCatalogStyle {
 		let weight = named_style.split_terminator(['(', ')']).next_back().and_then(|x| x.parse::<u32>().ok()).unwrap_or(400);
 		let italic = named_style.contains("Italic (");
-		FontCatalogStyle { weight, italic, url: url.into() }
+		FontCatalogStyle {
+			weight,
+			italic,
+			url: Some(url.into()),
+		}
 	}
 
 	/// Get the URL for the stylesheet for loading a font preview for this style of the given family name, subsetted to only the letters in the family name.
