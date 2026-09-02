@@ -6,7 +6,7 @@ use crate::messages::portfolio::document::graph_operation::utility_types::Transf
 use crate::messages::portfolio::document::overlays::utility_types::OverlayContext;
 use crate::messages::portfolio::document::utility_types::document_metadata::LayerNodeIdentifier;
 use crate::messages::portfolio::document::utility_types::network_interface::InputConnector;
-use crate::messages::portfolio::fonts::utility_types::{FontCatalog, FontCatalogStyle};
+use crate::messages::portfolio::fonts::utility_types::{FontCatalog, FontCatalogStyle, FontSource};
 use crate::messages::tool::common_functionality::auto_panning::AutoPanning;
 use crate::messages::tool::common_functionality::color_selector::{
 	ToolColorOptions, apply_fill_only_color_pick, apply_fill_only_enabled, refresh_slot_working_color, selection_changed_since_last_sync, solid, sync_fill_only,
@@ -144,13 +144,16 @@ fn create_text_widgets(tool: &TextTool, font_catalog: &FontCatalog, document: &D
 			.iter()
 			.map(|family| {
 				let current_font = &tool.options.font;
-				let FontCatalogStyle { weight, italic, .. } = FontCatalogStyle::from_named_style(&current_font.font_style, "");
+				let FontCatalogStyle { weight, italic, .. } = FontCatalogStyle::from_named_style(&current_font.font_style);
 				let new_font = Font::new(family.name.clone(), family.closest_style(weight, italic).to_named_style());
 				let commit_only_font = new_font.clone();
 
-				MenuListEntry::new(family.name.clone())
-					.label(family.name.clone())
-					.font(family.closest_style(400, false).preview_url(&family.name))
+				// Local fonts have no Google Fonts preview stylesheet; the frontend renders their previews from the user's installed system font instead
+				let mut entry = MenuListEntry::new(family.name.clone()).label(family.name.clone());
+				if family.origin == FontSource::Google {
+					entry = entry.font(family.closest_style(400, false).preview_url(&family.name));
+				}
+				entry
 					.on_update(move |_| apply_font(new_font.clone()))
 					.on_commit(move |_| commit_font(commit_only_font.clone()))
 			})

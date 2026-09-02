@@ -45,7 +45,11 @@ impl FontCatalog {
 						Some(FontCatalogStyle { weight, italic, url: Some(url) })
 					})
 					.collect();
-				FontCatalogFamily { name: family.family, styles }
+				FontCatalogFamily {
+					name: family.family,
+					origin: FontSource::Google,
+					styles,
+				}
 			})
 			.collect();
 
@@ -62,7 +66,7 @@ impl FontCatalog {
 		let family = self.0.iter().find(|family| family.name == font.font_family);
 
 		let found_style = family.map(|family| {
-			let FontCatalogStyle { weight, italic, .. } = FontCatalogStyle::from_named_style(&font.font_style, "");
+			let FontCatalogStyle { weight, italic, .. } = FontCatalogStyle::from_named_style(&font.font_style);
 			family.closest_style(weight, italic).clone()
 		});
 
@@ -75,7 +79,7 @@ impl FontCatalog {
 
 	pub fn download_url(&self, font: &Font) -> Option<String> {
 		let catalog_family = self.0.iter().find(|catalog_family| catalog_family.name == font.font_family)?;
-		let FontCatalogStyle { weight, italic, .. } = FontCatalogStyle::from_named_style(&font.font_style, "");
+		let FontCatalogStyle { weight, italic, .. } = FontCatalogStyle::from_named_style(&font.font_style);
 		catalog_family.closest_style(weight, italic).url.clone()
 	}
 
@@ -102,10 +106,23 @@ impl From<Vec<FontCatalogFamily>> for FontCatalog {
 }
 
 #[cfg_attr(feature = "wasm", derive(tsify::Tsify))]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum FontSource {
+	/// The font's files are downloaded from Google's font catalog.
+	#[default]
+	Google,
+	/// The font's files are read from the user's locally installed fonts.
+	Local,
+}
+
+#[cfg_attr(feature = "wasm", derive(tsify::Tsify))]
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct FontCatalogFamily {
 	/// The font family name.
 	pub name: String,
+	/// Where the font's files can be loaded from.
+	#[serde(default)]
+	pub origin: FontSource,
 	/// The font styles (variants) available for the font family.
 	pub styles: Vec<FontCatalogStyle>,
 }
@@ -117,7 +134,7 @@ impl FontCatalogFamily {
 		static FALLBACK_STYLE: FontCatalogStyle = FontCatalogStyle {
 			weight: 400,
 			italic: false,
-			url: Some(String::new()),
+			url: None,
 		};
 
 		self.styles
@@ -148,14 +165,10 @@ impl FontCatalogStyle {
 		format!("{named_weight}{maybe_italic} ({weight})")
 	}
 
-	pub fn from_named_style(named_style: &str, url: impl Into<String>) -> FontCatalogStyle {
+	pub fn from_named_style(named_style: &str) -> FontCatalogStyle {
 		let weight = named_style.split_terminator(['(', ')']).next_back().and_then(|x| x.parse::<u32>().ok()).unwrap_or(400);
 		let italic = named_style.contains("Italic (");
-		FontCatalogStyle {
-			weight,
-			italic,
-			url: Some(url.into()),
-		}
+		Self { weight, italic, url: None }
 	}
 
 	/// Get the URL for the stylesheet for loading a font preview for this style of the given family name, subsetted to only the letters in the family name.

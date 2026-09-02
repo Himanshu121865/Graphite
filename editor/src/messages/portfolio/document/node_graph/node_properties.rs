@@ -6,7 +6,7 @@ use crate::messages::layout::utility_types::widget_prelude::*;
 use crate::messages::portfolio::document::node_graph::document_node_definitions::resolve_document_node_type;
 use crate::messages::portfolio::document::utility_types::document_metadata::LayerNodeIdentifier;
 use crate::messages::portfolio::document::utility_types::network_interface::{InputConnector, NodeNetworkInterface};
-use crate::messages::portfolio::fonts::utility_types::FontCatalogStyle;
+use crate::messages::portfolio::fonts::utility_types::{FontCatalogStyle, FontSource};
 use crate::messages::prelude::*;
 use crate::messages::tool::common_functionality::graph_modification_utils;
 use choice::enum_choice;
@@ -877,12 +877,15 @@ pub fn font_inputs(parameter_widgets_info: ParameterWidgetsInfo) -> (Vec<WidgetI
 					.font_catalog
 					.iter()
 					.map(|family| {
-						let FontCatalogStyle { weight, italic, .. } = FontCatalogStyle::from_named_style(&font.font_style, "");
+						let FontCatalogStyle { weight, italic, .. } = FontCatalogStyle::from_named_style(&font.font_style);
 						let new_font = Font::new(family.name.clone(), family.closest_style(weight, italic).to_named_style());
 						let commit_font = new_font.clone();
-						MenuListEntry::new(family.name.clone())
-							.label(family.name.clone())
-							.font(family.closest_style(400, false).preview_url(&family.name))
+						// Local fonts have no Google Fonts preview stylesheet; the frontend renders their previews from the user's installed system font instead
+						let mut entry = MenuListEntry::new(family.name.clone()).label(family.name.clone());
+						if family.origin == FontSource::Google {
+							entry = entry.font(family.closest_style(400, false).preview_url(&family.name));
+						}
+						entry
 							.on_update(move |_| assign_font_message(node_id, new_font.clone()))
 							.on_commit(move |_| {
 								DeferMessage::AfterGraphRun {
